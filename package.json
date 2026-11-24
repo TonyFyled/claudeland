@@ -1,0 +1,14 @@
+{
+  "name": "claudeland",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A shared voxel island where anyone describes a build and Claude makes it, block by block.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@vercel/blob": "2.9.0",
+    "@vercel/functions": "3.11.3"
+  }
+}
