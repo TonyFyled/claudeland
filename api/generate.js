@@ -1,9 +1,12 @@
 // POST /api/generate  {idea, tier}
 // Streams Claude's blueprint as plain text while it is written, then a NUL byte and a
 // JSON trailer: {"token": "..."} on success (proof for /api/builds) or {"error": "..."}.
-import { MODELS, allow, buildPrompt, clientIp, json, sameOrigin, signResult, str } from '../lib/shared.js';
+import { DIRECT_MODELS, MODELS, allow, buildPrompt, clientIp, json, sameOrigin, signResult, str } from '../lib/shared.js';
 
+// Claude is reached through Vercel AI Gateway by default. Set ANTHROPIC_API_KEY to call
+// Anthropic's API directly with your own key instead.
 const GATEWAY = process.env.AI_GATEWAY_URL || 'https://ai-gateway.vercel.sh/v1/messages';
+const ANTHROPIC = 'https://api.anthropic.com/v1/messages';
 const PER_IP = Number(process.env.CLAUDELAND_BUILDS_PER_IP || 6); // per 15 minutes
 const PER_HOUR = Number(process.env.CLAUDELAND_BUILDS_PER_HOUR || 200);
 
@@ -30,16 +33,19 @@ export default {
     if (!idea) return json({ error: 'Describe what Claude should build.', code: 'bad_request' }, 400);
     const tier = body.tier === 'quick' ? 'quick' : 'default';
 
-    // On Vercel the function receives a short-lived OIDC token, so no API key is needed.
-    const key = process.env.AI_GATEWAY_API_KEY || request.headers.get('x-vercel-oidc-token') || process.env.VERCEL_OIDC_TOKEN;
+    // On Vercel the function receives a short-lived OIDC token, so AI Gateway needs no API key.
+    const direct = process.env.ANTHROPIC_API_KEY;
+    const key = direct || process.env.AI_GATEWAY_API_KEY || request.headers.get('x-vercel-oidc-token') || process.env.VERCEL_OIDC_TOKEN;
     if (!key) return problem('not_configured', 503);
+    const headers = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' };
+    if (!direct) headers.authorization = `Bearer ${key}`;
 
     let upstream;
     try {
-      upstream = await fetch(GATEWAY, {
+      upstream = await fetch(direct ? ANTHROPIC : GATEWAY, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': key, authorization: `Bearer ${key}`, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: MODELS[tier], max_tokens: 6000, stream: true, messages: [{ role: 'user', content: buildPrompt(idea) }] }),
+        headers,
+        body: JSON.stringify({ model: (direct ? DIRECT_MODELS : MODELS)[tier], max_tokens: 6000, stream: true, messages: [{ role: 'user', content: buildPrompt(idea) }] }),
         signal: request.signal,
       });
     } catch (e) {
@@ -49,7 +55,7 @@ export default {
     if (!upstream.ok) {
       const detail = await upstream.text().catch(() => '');
       console.error('gateway error', upstream.status, detail.slice(0, 600));
-      const code = upstream.status === 402 ? 'out_of_credits' : upstream.status === 429 ? 'busy' : [401, 403].includes(upstream.status) ? 'not_configured' : 'upstream';
+      const code = upstream.status === 402 || /credit|billing|balance/i.test(detail) && upstream.status !== 403 ? 'out_of_credits' : upstream.status === 429 ? 'busy' : [401, 403].includes(upstream.status) ? 'not_configured' : 'upstream';
       return problem(code, code === 'busy' ? 429 : 503);
     }
 

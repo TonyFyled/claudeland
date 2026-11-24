@@ -24,10 +24,12 @@ Builds are a small voxel language (boxes, walls, cylinders, cones, roofs and mov
 3. Add two environment variables:
    - `CLAUDELAND_SECRET`: any long random string. It signs Claude's results.
    - `CLAUDELAND_ADMIN_KEY`: a long random string only you know, for owner mode.
-4. Deploy. AI Gateway signs in with the project's OIDC token, so no API key is needed.
-5. Set an AI Gateway budget for the project so spend can't run away.
+4. Turn on Claude, one of two ways:
+   - **AI Gateway (default):** add a card under AI Gateway in your Vercel dashboard. That unlocks the free monthly credits. The project signs in with its OIDC token, so no API key is needed. Set an AI Gateway budget for the project so spend can't run away.
+   - **Your own Anthropic key:** add `ANTHROPIC_API_KEY` to the project. Claude is then called directly with that key (`claude-sonnet-5-5` and `claude-haiku-5-5`).
+5. Deploy.
 
-Optional settings: `AI_GATEWAY_API_KEY` (to run outside Vercel), `CLAUDELAND_BUILDS_PER_IP` (default 6 builds per 15 minutes per visitor) and `CLAUDELAND_BUILDS_PER_HOUR` (default 200 per server instance).
+Optional settings: `AI_GATEWAY_API_KEY` (to use AI Gateway from outside Vercel), `CLAUDELAND_BUILDS_PER_IP` (default 6 builds per 15 minutes per visitor) and `CLAUDELAND_BUILDS_PER_HOUR` (default 200 per server instance).
 
 ## Owner mode
 
